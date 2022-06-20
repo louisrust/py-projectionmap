@@ -2,22 +2,31 @@ import numpy as np
 import cv2 as cv
 import tkinter as tk
 from PIL import Image, ImageTk
+import time
+from audioplayer import AudioPlayer
+
+r = [[[421, 650], [194, 649], [168, 365], [408, 338]], [[421, 650], [610, 645], [613, 376], [408, 338]], [[871, 650], [610, 645], [613, 376], [892, 352]], [[871, 650], [942, 645], [961, 372], [892, 352]], [[613, 376], [490, 350], [484, 205], [609, 187]], [[613, 376], [689, 366], [692, 216], [609, 187]]]
 
 
-#r = [[[86, 289], [206, 286], [222, 669], [107, 678]], [[392, 319], [533, 318], [535, 579], [396, 554]], [[673, 579], [672, 704], [276, 689], [271, 571]]]
-r = [[[286, 580], [470, 602], [471, 728], [291, 696]], [[470, 602], [614, 573], [614, 685], [472, 727]], [[287, 579], [436, 554], [613, 572], [471, 602]]]
+sVid = "./media/test.mp4"
 
+sv1 = cv.VideoCapture(sVid)
+sv2 = cv.VideoCapture(sVid)
+sv3 = cv.VideoCapture(sVid)
+sv4 = cv.VideoCapture(sVid)
+sv5 = cv.VideoCapture(sVid)
+sv6 = cv.VideoCapture(sVid)
+#sv3 = cv.VideoCapture("./media/mathsl.mp4")
+#sv5 = cv.VideoCapture(0)
+#sv4 = cv.VideoCapture("./media/mathsr.mp4")
+sources = [sv1,sv2,sv3,sv4,sv5,sv6]
 
+fps = sv1.get(cv.CAP_PROP_FPS)
 
+scrwidth = 1920
+scrheight = 1080
 
-source1 = cv.VideoCapture("./media/video1.mp4")
-source2 = cv.VideoCapture("./media/video2.mp4")
-source3 = cv.VideoCapture("./media/video3.mp4")
-source4 = cv.VideoCapture("./media/video4.mp4")
-sources = [source1,source2,source3]
-
-scrwidth = 1024
-scrheight = 768
+player = AudioPlayer("./media/test.mp3")
 
 def warpFrame(img,w,h,p):
     #determine size of new polygon
@@ -65,28 +74,68 @@ def warpFrame(img,w,h,p):
 
     return img
 
-
+startTime = time.time()
+frameGlobal = 1
+audioStartTime = time.time()
+estAudioFrame = 1
 class MainWindow():
     def __init__(self, window, sources):
         self.window = window
         self.sources = sources
-        self.width = 1024
-        self.height = 768
-        self.interval = 20 # Interval in ms to get the latest frame
+        self.width = 1280
+        self.height = 720
+        self.interval = round(1000/fps) # Interval in ms to get the latest frame
         # Create canvas for image
-        self.canvas = tk.Canvas(self.window, width=scrwidth, height=scrheight)
+        self.canvas = tk.Canvas(self.window, bg='black', width=scrwidth, height=scrheight)
+        self.canvas.create_rectangle(0,0,1920,1080,fill="black",outline="black")
         self.canvas.grid(row=0, column=0)
         # Update image on canvas
         self.update_image()
+        self.window.bind("<Button-1>",self.back5)
+        self.window.bind("<Button-2>",self.forward5)
+        self.window.bind("<Double 1>",self.catchUp)
+    def back5(self,event):
+        print("Back 5")
+        for s in self.sources:
+            s.set(cv.CAP_PROP_POS_FRAMES,s.get(cv.CAP_PROP_POS_FRAMES)-5)
+    def forward5(self,event):
+        print("Forward 5")
+        for s in self.sources:
+            s.set(cv.CAP_PROP_POS_FRAMES,s.get(cv.CAP_PROP_POS_FRAMES)+5)
+    def catchUp(self,event):
+        for s in self.sources:
+            s.set(cv.CAP_PROP_POS_FRAMES,estAudioFrame)
+        print(f"Video frame: {sv1.get(cv.CAP_PROP_POS_FRAMES)}")
+        print(f"Audio estimated frame: {estAudioFrame}")
     def update_image(self):
+        global frameGlobal
+        global startTime
+        global audioStartTime
+        global estAudioFrame
+
+        estAudioFrame = round((time.time()-audioStartTime)*fps)
+        if (abs(sv1.get(cv.CAP_PROP_POS_FRAMES)-estAudioFrame)>60):
+            self.catchUp(0)
+
+        self.window.after(self.interval, self.update_image)
+        frameTime = time.time()-startTime
+        startTime = time.time()
         self.imagesOut = []
         it = 0
         for s in self.sources:
-            frame = cv.cvtColor(s.read()[1], cv.COLOR_BGR2RGB) # to RGB
-            imageOut = warpFrame(frame,1280,720,r[it])
+            sFrame = s.read()[1]
+            frameCurrent = s.get(cv.CAP_PROP_POS_FRAMES)
+            if (sources[0].get(cv.CAP_PROP_POS_FRAMES)==1):
+                player.play(block=False)
+                audioStartTime = time.time()
+            if frameCurrent == s.get(cv.CAP_PROP_FRAME_COUNT):
+                frame_counter = 0 #Or whatever as long as it is the same as next line
+                s.set(cv.CAP_PROP_POS_FRAMES, 0)
+            frame = cv.cvtColor(sFrame, cv.COLOR_BGR2RGB) # to RGB
+            imageOut = warpFrame(frame,640,360,r[it])
             self.imagesOut.append(imageOut)
             it += 1
-
+            
         nOut = len(self.sources)
         if nOut==1:
             self.blendOut = self.imagesOut[0]
@@ -101,9 +150,8 @@ class MainWindow():
         self.canvasOut = ImageTk.PhotoImage(self.canvasOut) # to ImageTk format
 
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.canvasOut)
-        
-        # Repeat every 'interval' ms
-        self.window.after(self.interval, self.update_image)
+        frameGlobal +=1
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.attributes('-fullscreen',True)

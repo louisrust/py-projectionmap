@@ -1,19 +1,19 @@
 import tkinter as tk
+import math
 root = tk.Tk()
 root.attributes('-fullscreen',True)
 
 w = tk.Canvas(root,bg='black', highlightthickness=0)
 
-#r = [[[86, 289], [206, 286], [222, 669], [107, 678]], [[392, 319], [533, 318], [535, 579], [396, 554]], [[673, 579], [672, 704], [276, 689], [271, 571]]]
 r = []
 editingRectangle = False
-rc = 0
-pc = 0
+rc = 0 # rectangle current
+pc = 0 # point current
 
-wid = 1024
-hei = 768
+wid = 1800 # editing area width
+hei = 1080 # editing area height
 
-colours = [[255,0,0],[0,255,0],[0,0,255],[255,255,0],[0,255,255],[255,0,255]]
+colours = [[255,0,0],[0,255,0],[0,0,255],[255,255,0],[0,255,255],[255,0,255]] # default colours
 
 def renderText(m,l):
     w.create_text(5,10+hei+(l-1)*22,fill="white",font="Times 20 italic bold",text=m,anchor=tk.W)
@@ -53,13 +53,25 @@ def movePoint(e):
         redraw()
         createPoint(e.x,e.y)
 
+def dist(x1,y1,x2,y2):
+    dist = abs(math.sqrt(math.pow(y2-y1,2)+math.pow(x2-x1,2)))
+    return dist
+
+def findSnapPoint(x,y):
+    for rect in r:
+        for pos in rect:
+            if dist(x,y,pos[0],pos[1])<20:
+                return pos[0],pos[1]
+    return x,y
+
 def confirmPoint(e):
     global editingRectangle
     global r
     global pc
     if editingRectangle:
-        r[rc][pc][0] = e.x
-        r[rc][pc][1] = e.y
+        snapX,snapY = findSnapPoint(e.x,e.y)
+        r[rc][pc][0] = snapX
+        r[rc][pc][1] = snapY
         pc +=1
         redraw()
         if (pc==4):
